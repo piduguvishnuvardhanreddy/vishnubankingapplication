@@ -29,7 +29,13 @@ const PORT = process.env.PORT || 5000;
 // Basic security & logging
 app.use(helmet());
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://vishnubankingapplication.vercel.app', process.env.FRONTEND_URL],
+    origin: [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'https://vishnubankingapplication.vercel.app',
+        process.env.FRONTEND_URL,
+        /\.vercel\.app$/
+    ],
     credentials: true,
 }));
 app.use(express.json());

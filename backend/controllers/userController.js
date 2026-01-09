@@ -40,7 +40,7 @@ exports.changePassword = async (req, res) => {
             return res.status(400).json({ status: 'fail', message: 'Please provide current and new password' });
         }
 
-        const user = await User.findById(req.user.id);
+        const user = await User.findById(req.user.id).select('+password');
 
         // Verify current password
         const isMatch = await bcrypt.compare(currentPassword, user.password);
