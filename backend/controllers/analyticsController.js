@@ -1,5 +1,5 @@
 const Transaction = require('../models/Transaction');
-const Account = require('../models/Account');
+const Account = require('../models/BankAccount');
 
 exports.getAnalytics = async (req, res) => {
     try {
