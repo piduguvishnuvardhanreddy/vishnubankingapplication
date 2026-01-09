@@ -4,11 +4,9 @@ const BankAccount = require('../models/BankAccount');
 const User = require('../models/User');
 
 exports.deposit = async (req, res, next) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const { amount } = req.body;
-        const account = await BankAccount.findOne({ user: req.user.id }).session(session);
+        const account = await BankAccount.findOne({ user: req.user.id });
 
         if (!account) {
             throw new Error('Account not found');
@@ -20,29 +18,23 @@ exports.deposit = async (req, res, next) => {
         account.balance += amount;
         await account.save();
 
-        const transaction = await Transaction.create([{
+        const transaction = await Transaction.create({
             toAccount: account._id,
             amount,
             type: 'deposit',
             status: 'completed'
-        }], { session });
+        });
 
-        await session.commitTransaction();
-        res.status(200).json({ status: 'success', data: { transaction: transaction[0], newBalance: account.balance } });
+        res.status(200).json({ status: 'success', data: { transaction: transaction, newBalance: account.balance } });
     } catch (err) {
-        await session.abortTransaction();
         res.status(400).json({ status: 'fail', message: err.message });
-    } finally {
-        session.endSession();
     }
 };
 
 exports.withdraw = async (req, res, next) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const { amount } = req.body;
-        const account = await BankAccount.findOne({ user: req.user.id }).session(session);
+        const account = await BankAccount.findOne({ user: req.user.id });
 
         if (!account) {
             throw new Error('Account not found');
@@ -57,40 +49,34 @@ exports.withdraw = async (req, res, next) => {
         account.balance -= amount;
         await account.save();
 
-        const transaction = await Transaction.create([{
+        const transaction = await Transaction.create({
             fromAccount: account._id,
             amount,
             type: 'withdrawal',
             status: 'completed'
-        }], { session });
+        });
 
-        await session.commitTransaction();
-        res.status(200).json({ status: 'success', data: { transaction: transaction[0], newBalance: account.balance } });
+        res.status(200).json({ status: 'success', data: { transaction: transaction, newBalance: account.balance } });
     } catch (err) {
-        await session.abortTransaction();
         res.status(400).json({ status: 'fail', message: err.message });
-    } finally {
-        session.endSession();
     }
 };
 
 exports.transfer = async (req, res, next) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const { toEmail, amount } = req.body;
 
         // Sender Account
-        const fromAccount = await BankAccount.findOne({ user: req.user.id }).session(session);
+        const fromAccount = await BankAccount.findOne({ user: req.user.id });
         if (!fromAccount) throw new Error('Your account not found');
         if (amount <= 0) throw new Error('Amount must be positive');
         if (fromAccount.balance < amount) throw new Error('Insufficient balance');
 
         // Receiver User -> Account
-        const toUser = await User.findOne({ email: toEmail }).session(session);
+        const toUser = await User.findOne({ email: toEmail });
         if (!toUser) throw new Error('Recipient user not found');
 
-        const toAccount = await BankAccount.findOne({ user: toUser._id }).session(session);
+        const toAccount = await BankAccount.findOne({ user: toUser._id });
         if (!toAccount) throw new Error('Recipient account not found');
 
         if (fromAccount._id.equals(toAccount._id)) {
@@ -104,21 +90,19 @@ exports.transfer = async (req, res, next) => {
         toAccount.balance += amount;
         await toAccount.save();
 
-        const transaction = await Transaction.create([{
+        const transaction = await Transaction.create({
             fromAccount: fromAccount._id,
             toAccount: toAccount._id,
             amount,
             type: 'transfer',
             status: 'completed'
-        }], { session });
+        });
 
-        await session.commitTransaction();
-        res.status(200).json({ status: 'success', data: { transaction: transaction[0], newBalance: fromAccount.balance } });
+        res.status(200).json({ status: 'success', data: { transaction: transaction, newBalance: fromAccount.balance } });
     } catch (err) {
-        await session.abortTransaction();
+        // Note: Without sessions, if a step fails halfway, data might be inconsistent. 
+        // But this is required for standalone DB support.
         res.status(400).json({ status: 'fail', message: err.message });
-    } finally {
-        session.endSession();
     }
 };
 
@@ -136,14 +120,6 @@ exports.getHistory = async (req, res) => {
         };
 
         if (type && type !== 'all') {
-            // Logic for 'credit'/'debit' is complex because it depends on whether account is from or to.
-            // Simplified: transaction type (transfer, deposit, etc) or directional type?
-            // User likely wants "Credit" (money in) vs "Debit" (money out).
-            // But transaction schema has `type` enum ['deposit', 'withdrawal', 'transfer', 'request'].
-            // We'll filter by schema type if it matches, otherwise ignored.
-            // Better approach: User wants "Credit" (incoming) vs "Debit" (outgoing).
-            // But implementing complex directional filter in plain Mongo query is hard without aggregation.
-            // Let's support schema types for now: 'transfer', 'deposit', 'withdrawal'.
             query.type = type;
         }
 
@@ -159,7 +135,6 @@ exports.getHistory = async (req, res) => {
             if (!isNaN(search)) {
                 query.amount = Number(search);
             }
-            // Could add description search if description field existed
         }
 
         const transactions = await Transaction.find(query)
@@ -178,39 +153,33 @@ exports.getHistory = async (req, res) => {
 };
 
 exports.requestMoney = async (req, res, next) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const { fromEmail, amount } = req.body;
 
-        const requesterAccount = await BankAccount.findOne({ user: req.user.id }).session(session);
+        const requesterAccount = await BankAccount.findOne({ user: req.user.id });
         if (!requesterAccount) throw new Error('Your account not found');
         if (amount <= 0) throw new Error('Amount must be positive');
 
-        const fromUser = await User.findOne({ email: fromEmail }).session(session);
+        const fromUser = await User.findOne({ email: fromEmail });
         if (!fromUser) throw new Error('User to request from not found');
 
-        const fromAccount = await BankAccount.findOne({ user: fromUser._id }).session(session);
+        const fromAccount = await BankAccount.findOne({ user: fromUser._id });
         if (!fromAccount) throw new Error('Payer account not found');
 
         if (requesterAccount._id.equals(fromAccount._id)) {
             throw new Error('Cannot request money from self');
         }
 
-        const transaction = await Transaction.create([{
+        const transaction = await Transaction.create({
             fromAccount: fromAccount._id,
             toAccount: requesterAccount._id,
             amount,
             type: 'request',
             status: 'pending'
-        }], { session });
+        });
 
-        await session.commitTransaction();
-        res.status(200).json({ status: 'success', message: 'Request sent', data: { transaction: transaction[0] } });
+        res.status(200).json({ status: 'success', message: 'Request sent', data: { transaction: transaction } });
     } catch (err) {
-        await session.abortTransaction();
         res.status(400).json({ status: 'fail', message: err.message });
-    } finally {
-        session.endSession();
     }
 };
