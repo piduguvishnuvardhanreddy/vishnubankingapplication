@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
+import { useNotification } from '../context/NotificationContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { pageVariants } from '../animations';
@@ -9,21 +10,21 @@ import { pageVariants } from '../animations';
 export const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     const { login } = useAuth();
+    const { showError, showSuccess } = useNotification();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
         try {
             await login(email, password);
+            showSuccess('Welcome back!');
             navigate('/dashboard');
         } catch (err) {
-            setError(err.message || 'Failed to login');
+            showError(err.message || 'Failed to login');
         } finally {
             setLoading(false);
         }
@@ -42,12 +43,6 @@ export const LoginPage = () => {
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
                     <p className="text-gray-500">Sign in to your banking account</p>
                 </div>
-
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm">
-                        {error}
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <Input

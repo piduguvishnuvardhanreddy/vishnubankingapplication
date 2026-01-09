@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
+import { useNotification } from '../context/NotificationContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { pageVariants } from '../animations';
@@ -10,21 +11,21 @@ export const RegisterPage = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     const { register } = useAuth();
+    const { showError, showSuccess } = useNotification();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
         try {
             await register(name, email, password);
+            showSuccess('Account created successfully!');
             navigate('/dashboard');
         } catch (err) {
-            setError(err.message || 'Failed to create account');
+            showError(err.message || 'Failed to create account');
         } finally {
             setLoading(false);
         }
@@ -43,12 +44,6 @@ export const RegisterPage = () => {
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
                     <p className="text-gray-500">Join our secure banking platform</p>
                 </div>
-
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm">
-                        {error}
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Input

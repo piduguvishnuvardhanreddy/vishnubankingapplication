@@ -1,5 +1,6 @@
 const express = require('express');
 const transactionController = require('../controllers/transactionController');
+const analyticsController = require('../controllers/analyticsController');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -11,5 +12,6 @@ router.post('/withdraw', transactionController.withdraw);
 router.post('/transfer', transactionController.transfer);
 router.post('/request', transactionController.requestMoney);
 router.get('/history', transactionController.getHistory);
+router.get('/analytics', analyticsController.getAnalytics);
 
 module.exports = router;

@@ -1,35 +1,69 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownLeft, RefreshCcw } from 'lucide-react';
 import api from '../lib/axios';
 import { pageVariants } from '../animations';
 import { Card } from '../components/ui/Card';
+import { FilterBar } from '../components/FilterBar';
+import { useNotification } from '../context/NotificationContext';
 
 export const HistoryPage = () => {
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
-
     const [accountId, setAccountId] = useState(null);
 
-    const fetchHistory = async () => {
+    const [filters, setFilters] = useState({
+        search: '',
+        type: 'all',
+        startDate: '',
+        endDate: ''
+    });
+
+    const { showError } = useNotification();
+
+    const fetchHistory = useCallback(async () => {
         setLoading(true);
         try {
+            const queryParams = new URLSearchParams();
+            if (filters.type !== 'all') queryParams.append('type', filters.type);
+            if (filters.search) queryParams.append('search', filters.search);
+            if (filters.startDate) queryParams.append('startDate', filters.startDate);
+            if (filters.endDate) queryParams.append('endDate', filters.endDate);
+
             const [histRes, accRes] = await Promise.all([
-                api.get('/transactions/history'),
+                api.get(`/transactions/history?${queryParams.toString()}`),
                 api.get('/accounts/my-account')
             ]);
             setTransactions(histRes.data.data.transactions);
             setAccountId(accRes.data.data.account._id);
         } catch (err) {
             console.error(err);
+            showError('Failed to load history');
         } finally {
             setLoading(false);
         }
+    }, [filters, showError]);
+
+    // Debounce fetch for search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchHistory();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [fetchHistory]);
+
+    const handleFilterChange = (key, value) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
     };
 
-    useEffect(() => {
-        fetchHistory();
-    }, []);
+    const handleReset = () => {
+        setFilters({
+            search: '',
+            type: 'all',
+            startDate: '',
+            endDate: ''
+        });
+    };
 
     const formatDate = (dateStr) => {
         return new Date(dateStr).toLocaleDateString('en-US', {
@@ -48,6 +82,8 @@ export const HistoryPage = () => {
                     <RefreshCcw className="w-5 h-5" />
                 </button>
             </div>
+
+            <FilterBar filters={filters} onFilterChange={handleFilterChange} onReset={handleReset} />
 
             <Card className="overflow-hidden p-0">
                 {loading ? (
@@ -78,7 +114,7 @@ export const HistoryPage = () => {
                                     }`}>
                                     {(tx.type === 'deposit' || (tx.type === 'transfer' && tx.toAccount?._id === accountId)) ? '+' :
                                         (tx.type === 'withdrawal' || (tx.type === 'transfer' && tx.fromAccount?._id === accountId)) ? '-' : ''}
-                                    ${tx.amount.toLocaleString()}
+                                    ${Number(tx.amount).toLocaleString()}
                                 </div>
                             </div>
                         ))}

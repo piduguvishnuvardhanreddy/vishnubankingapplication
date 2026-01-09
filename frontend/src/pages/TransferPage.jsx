@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 import api from '../lib/axios';
 import { pageVariants } from '../animations';
+import { useNotification } from '../context/NotificationContext';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -11,19 +12,19 @@ export const TransferPage = () => {
     const [email, setEmail] = useState('');
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
-    const [msg, setMsg] = useState({ type: '', text: '' });
+
+    const { showSuccess, showError } = useNotification();
 
     const handleTransfer = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setMsg({ type: '', text: '' });
         try {
             await api.post('/transactions/transfer', { toEmail: email, amount: Number(amount) });
-            setMsg({ type: 'success', text: 'Transfer completed successfully!' });
+            showSuccess('Transfer completed successfully!');
             setEmail('');
             setAmount('');
         } catch (err) {
-            setMsg({ type: 'error', text: err.message || 'Transfer failed' });
+            showError(err.response?.data?.message || err.message || 'Transfer failed');
         } finally {
             setLoading(false);
         }
@@ -37,17 +38,6 @@ export const TransferPage = () => {
             </div>
 
             <Card className="border-t-4 border-t-primary-500 shadow-xl shadow-primary-500/5">
-                {msg.text && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`p-4 rounded-xl mb-6 flex items-center ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}
-                    >
-                        {msg.type === 'success' ? <CheckCircle className="w-5 h-5 mr-2" /> : null}
-                        {msg.text}
-                    </motion.div>
-                )}
-
                 <form onSubmit={handleTransfer} className="space-y-6">
                     <Input
                         label="Recipient Email"

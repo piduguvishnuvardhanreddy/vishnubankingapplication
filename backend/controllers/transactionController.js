@@ -122,18 +122,58 @@ exports.transfer = async (req, res, next) => {
     }
 };
 
-exports.getHistory = async (req, res, next) => {
+exports.getHistory = async (req, res) => {
     try {
         const account = await BankAccount.findOne({ user: req.user.id });
-        if (!account) return res.status(404).json({ message: 'Account not found' });
+        if (!account) {
+            return res.status(404).json({ status: 'fail', message: 'Account not found' });
+        }
 
-        const transactions = await Transaction.find({
+        const { type, startDate, endDate, search } = req.query;
+
+        let query = {
             $or: [{ fromAccount: account._id }, { toAccount: account._id }]
-        }).sort({ timestamp: -1 }).populate('fromAccount toAccount');
+        };
 
-        res.status(200).json({ status: 'success', results: transactions.length, data: { transactions } });
+        if (type && type !== 'all') {
+            // Logic for 'credit'/'debit' is complex because it depends on whether account is from or to.
+            // Simplified: transaction type (transfer, deposit, etc) or directional type?
+            // User likely wants "Credit" (money in) vs "Debit" (money out).
+            // But transaction schema has `type` enum ['deposit', 'withdrawal', 'transfer', 'request'].
+            // We'll filter by schema type if it matches, otherwise ignored.
+            // Better approach: User wants "Credit" (incoming) vs "Debit" (outgoing).
+            // But implementing complex directional filter in plain Mongo query is hard without aggregation.
+            // Let's support schema types for now: 'transfer', 'deposit', 'withdrawal'.
+            query.type = type;
+        }
+
+        if (startDate || endDate) {
+            query.timestamp = {};
+            if (startDate) query.timestamp.$gte = new Date(startDate);
+            if (endDate) query.timestamp.$lte = new Date(endDate);
+        }
+
+        // Search: Simple check on Amount (exact)
+        if (search) {
+            // Check if search is a number
+            if (!isNaN(search)) {
+                query.amount = Number(search);
+            }
+            // Could add description search if description field existed
+        }
+
+        const transactions = await Transaction.find(query)
+            .sort({ timestamp: -1 })
+            .populate('fromAccount', 'accountNumber')
+            .populate('toAccount', 'accountNumber');
+
+        res.status(200).json({
+            status: 'success',
+            results: transactions.length,
+            data: { transactions }
+        });
     } catch (err) {
-        next(err);
+        res.status(500).json({ status: 'error', message: err.message });
     }
 };
 

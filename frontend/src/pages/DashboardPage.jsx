@@ -6,23 +6,29 @@ import { pageVariants, cardVariants } from '../animations';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
+import { AnalyticsChart } from '../components/AnalyticsChart';
 
 export const DashboardPage = () => {
     const [account, setAccount] = useState(null);
+    const [analytics, setAnalytics] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchAccount = async () => {
+        const fetchData = async () => {
             try {
-                const res = await api.get('/accounts/my-account');
-                setAccount(res.data.data.account);
+                const [accountRes, analyticsRes] = await Promise.all([
+                    api.get('/accounts/my-account'),
+                    api.get('/transactions/analytics')
+                ]);
+                setAccount(accountRes.data.data.account);
+                setAnalytics(analyticsRes.data.data.stats);
             } catch (err) {
-                console.error("Failed to fetch account", err);
+                console.error("Failed to fetch dashboard data", err);
             } finally {
                 setLoading(false);
             }
         };
-        fetchAccount();
+        fetchData();
     }, []);
 
     if (loading) return <div className="p-8 text-slate-500">Loading dashboard...</div>;
@@ -76,6 +82,13 @@ export const DashboardPage = () => {
                     colorClass="bg-rose-100 text-rose-600"
                 />
             </div>
+
+            {/* Analytics Section */}
+            {analytics.length > 0 && (
+                <motion.div variants={cardVariants} initial="hidden" animate="visible">
+                    <AnalyticsChart data={analytics} />
+                </motion.div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2">

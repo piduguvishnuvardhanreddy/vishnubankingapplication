@@ -18,6 +18,7 @@ process.on('uncaughtException', (err) => {
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -47,6 +48,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/admin', adminRoutes);
