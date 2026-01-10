@@ -14,12 +14,18 @@ export const ProfilePage = () => {
     const { showSuccess, showError } = useNotification();
 
     // Profile State
-    const [profile, setProfile] = useState({ name: '', email: '', role: '' });
+    const [profile, setProfile] = useState({ name: '', email: '', profilePicture: null });
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
 
     // Password State
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [loadingPass, setLoadingPass] = useState(false);
+
+    // PIN State
+    const [pins, setPins] = useState({ current: '', new: '', confirm: '' });
+    const [loadingPin, setLoadingPin] = useState(false);
 
     // Account data
     const [account, setAccount] = useState(null);
@@ -32,6 +38,10 @@ export const ProfilePage = () => {
                     api.get('/accounts/my-account')
                 ]);
                 setProfile(profRes.data.data.user);
+                if (profRes.data.data.user.profilePicture) {
+                    // Ensure full URL if needed, depending on how you want to serve it. 
+                    // Ideally backend sends full URL or frontend prepends API_BASE
+                }
                 setAccount(accRes.data.data.account);
             } catch (err) {
                 console.error(err);
@@ -45,7 +55,20 @@ export const ProfilePage = () => {
         e.preventDefault();
         setLoadingProfile(true);
         try {
-            await api.patch('/users/profile', { name: profile.name, email: profile.email });
+            const formData = new FormData();
+            formData.append('name', profile.name);
+            formData.append('email', profile.email);
+            if (selectedFile) {
+                formData.append('profilePicture', selectedFile);
+            }
+
+            const res = await api.patch('/users/profile', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            // Update local state with returned user data to get the new image URL
+            setProfile(res.data.data.user);
+            setSelectedFile(null); // Reset selection
             showSuccess('Profile updated successfully');
         } catch (err) {
             showError(err.response?.data?.message || 'Failed to update profile');
@@ -74,6 +97,56 @@ export const ProfilePage = () => {
         }
     };
 
+    const handleChangePin = async (e) => {
+        e.preventDefault();
+        if (pins.new !== pins.confirm) {
+            return showError('New PINs do not match');
+        }
+        if (pins.new.length < 4 || pins.new.length > 6) {
+
+            return showError('PIN must be 4-6 digits');
+        }
+        setLoadingPin(true);
+        try {
+            await api.post('/users/change-pin', {
+                currentPin: pins.current,
+                newPin: pins.new
+            });
+            showSuccess('PIN updated successfully');
+            setPins({ current: '', new: '', confirm: '' });
+        } catch (err) {
+            showError(err.response?.data?.message || 'Failed to update PIN');
+        } finally {
+            setLoadingPin(false);
+        }
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setSelectedFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
+        }
+    };
+
+    // Helper to constructing image URL
+    // If profilePicture is just "uploads/filename.jpg", we need authentication details or public access.
+    // Since we made /uploads static, we can access it via http://localhost:5000/uploads/...
+    // NOTE: In production, use env variable for base URL.
+    const getAvatarSrc = () => {
+        if (previewUrl) return previewUrl;
+        if (profile.profilePicture) {
+            // Assuming backend runs on same host/port logic or we use VITE_API_URL base
+            // A simple way is to rely on the backend returning a relative path, and prepending the API base
+            // But for now let's assume standard localhost dev environment or relative
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            // Remove /api from base if it exists to get root
+            const rootUrl = baseUrl.replace('/api', '');
+            return `${rootUrl}/${profile.profilePicture}`;
+        }
+        return null;
+    };
+
     return (
         <motion.div variants={pageVariants} initial="initial" animate="animate" className="max-w-4xl mx-auto py-8">
             <div className="text-center mb-8">
@@ -89,6 +162,25 @@ export const ProfilePage = () => {
                             <User className="w-6 h-6 text-indigo-600" />
                         </div>
                         <h2 className="text-xl font-bold text-slate-800">Profile Information</h2>
+                    </div>
+
+                    <div className="flex flex-col items-center mb-6">
+                        <div className="relative group">
+                            <div className="w-24 h-24 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center border-4 border-white shadow-lg">
+                                {getAvatarSrc() ? (
+                                    <img src={getAvatarSrc()} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="text-3xl font-bold text-indigo-600">
+                                        {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+                                    </span>
+                                )}
+                            </div>
+                            <label className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors">
+                                <User className="w-4 h-4" />
+                                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                            </label>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">Click icon to change avatar</p>
                     </div>
 
                     <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -114,7 +206,7 @@ export const ProfilePage = () => {
                         </div>
 
                         <Button type="submit" isLoading={loadingProfile} className="w-full">
-                            Update Profile
+                            Save Changes
                         </Button>
                     </form>
                 </Card>
@@ -129,32 +221,72 @@ export const ProfilePage = () => {
                             <h2 className="text-xl font-bold text-slate-800">Security</h2>
                         </div>
 
-                        <form onSubmit={handleChangePassword} className="space-y-4">
-                            <Input
-                                label="Current Password"
-                                type="password"
-                                value={passwords.current}
-                                onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-                                placeholder="••••••••"
-                            />
-                            <Input
-                                label="New Password"
-                                type="password"
-                                value={passwords.new}
-                                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                                placeholder="••••••••"
-                            />
-                            <Input
-                                label="Confirm Password"
-                                type="password"
-                                value={passwords.confirm}
-                                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                                placeholder="••••••••"
-                            />
-                            <Button type="submit" variant="secondary" isLoading={loadingPass} className="w-full">
-                                Change Password
-                            </Button>
-                        </form>
+                        <div className="space-y-8">
+                            {/* Change Password */}
+                            <form onSubmit={handleChangePassword} className="space-y-4">
+                                <h3 className="text-sm font-semibold text-slate-900 border-b pb-2">Change Password</h3>
+                                <Input
+                                    label="Current Password"
+                                    type="password"
+                                    value={passwords.current}
+                                    onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                                    placeholder="••••••••"
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input
+                                        label="New Password"
+                                        type="password"
+                                        value={passwords.new}
+                                        onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                                        placeholder="••••"
+                                    />
+                                    <Input
+                                        label="Confirm"
+                                        type="password"
+                                        value={passwords.confirm}
+                                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                                        placeholder="••••"
+                                    />
+                                </div>
+                                <Button type="submit" variant="secondary" isLoading={loadingPass} className="w-full">
+                                    Update Password
+                                </Button>
+                            </form>
+
+                            {/* Change PIN */}
+                            <form onSubmit={handleChangePin} className="space-y-4">
+                                <h3 className="text-sm font-semibold text-slate-900 border-b pb-2">Transaction PIN</h3>
+                                <Input
+                                    label="Current PIN"
+                                    type="password"
+                                    value={pins.current}
+                                    onChange={(e) => setPins({ ...pins, current: e.target.value })}
+                                    maxLength={6}
+                                    placeholder="Old PIN"
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input
+                                        label="New PIN"
+                                        type="password"
+                                        value={pins.new}
+                                        onChange={(e) => setPins({ ...pins, new: e.target.value })}
+                                        maxLength={6}
+                                        placeholder="New"
+                                    />
+                                    <Input
+                                        label="Confirm"
+                                        type="password"
+                                        value={pins.confirm}
+                                        onChange={(e) => setPins({ ...pins, confirm: e.target.value })}
+                                        maxLength={6}
+                                        placeholder="Confirm"
+                                    />
+                                </div>
+                                <Button type="submit" variant="secondary" isLoading={loadingPin} className="w-full">
+                                    Update PIN
+                                </Button>
+                            </form>
+                        </div>
                     </Card>
 
                     {account && (

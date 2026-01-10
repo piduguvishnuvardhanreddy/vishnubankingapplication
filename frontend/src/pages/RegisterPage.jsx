@@ -11,6 +11,7 @@ export const RegisterPage = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
 
     const { register } = useAuth();
@@ -21,7 +22,7 @@ export const RegisterPage = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await register(name, email, password);
+            await register(name, email, password, pin);
             showSuccess('Account created successfully!');
             navigate('/dashboard');
         } catch (err) {
@@ -69,6 +70,16 @@ export const RegisterPage = () => {
                         required
                         minLength={8}
                         placeholder="••••••••"
+                    />
+                    <Input
+                        label="Transaction PIN (4-6 digits)"
+                        type="password"
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                        required
+                        minLength={4}
+                        maxLength={6}
+                        placeholder="1234"
                     />
                     <Button type="submit" className="w-full mt-2" isLoading={loading}>
                         Create Account

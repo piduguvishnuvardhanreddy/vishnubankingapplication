@@ -7,5 +7,6 @@ const router = express.Router();
 router.use(authMiddleware.protect);
 
 router.get('/my-account', accountController.getMyAccount);
+router.post('/balance-secure', accountController.getSecureBalance);
 
 module.exports = router;

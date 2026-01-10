@@ -29,18 +29,36 @@ const PORT = process.env.PORT || 5000;
 // Basic security & logging
 app.use(helmet());
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'https://vishnubankingapplication.vercel.app',
-        process.env.FRONTEND_URL,
-        /\.vercel\.app$/
-    ],
+    origin: (origin, callback) => {
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://127.0.0.1:5173',
+            process.env.FRONTEND_URL, // Custom Production URL
+            /\.vercel\.app$/ // Allow all Vercel deployments (Great for preview URLs)
+        ];
+
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (allowed instanceof RegExp) return allowed.test(origin);
+            return allowed === origin;
+        });
+
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            console.log('Blocked by CORS:', origin); // Helpful for debugging
+            callback(new Error(`CORS not allowed for origin: ${origin}`));
+        }
+    },
     credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -76,7 +94,7 @@ app.use((err, req, res, next) => {
     res.status(err.statusCode || 500).json({
         status: 'error',
         message: err.message || 'Internal Server Error',
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        stack: process.env.NODE_ENV === 'development' || !process.env.NODE_ENV ? err.stack : undefined
     });
 });
 

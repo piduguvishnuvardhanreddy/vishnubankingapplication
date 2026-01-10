@@ -16,7 +16,8 @@ const createSendToken = (user, statusCode, res) => {
             Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 1) * 24 * 60 * 60 * 1000
         ),
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production'
+        secure: true, // Always true for cross-site (Render -> Vercel)
+        sameSite: 'none' // Required for cross-site cookies
     };
 
     res.cookie('jwt', token, cookieOptions);
@@ -32,12 +33,12 @@ const createSendToken = (user, statusCode, res) => {
 
 exports.register = async (req, res, next) => {
     console.log("Register request received:", req.body); // LOG INPUT
-    
-    try {
-        const { name, email, password } = req.body;
 
-        if (!name || !email || !password) {
-            return res.status(400).json({ status: 'fail', message: 'Missing name, email or password' });
+    try {
+        const { name, email, password, pin } = req.body;
+
+        if (!name || !email || !password || !pin) {
+            return res.status(400).json({ status: 'fail', message: 'Missing name, email, password, or PIN' });
         }
 
         // Check existing
@@ -51,7 +52,8 @@ exports.register = async (req, res, next) => {
         const newUser = await User.create({
             name,
             email,
-            password
+            password,
+            pin
         });
         console.log("User created:", newUser._id);
 
@@ -61,9 +63,9 @@ exports.register = async (req, res, next) => {
         let accountNumber;
         let isUnique = false;
         while (!isUnique) {
-             accountNumber = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-             const existingAcc = await BankAccount.findOne({ accountNumber });
-             if (!existingAcc) isUnique = true;
+            accountNumber = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+            const existingAcc = await BankAccount.findOne({ accountNumber });
+            if (!existingAcc) isUnique = true;
         }
 
         const newAccount = await BankAccount.create({
@@ -125,21 +127,35 @@ exports.login = async (req, res, next) => {
         // Check user & password
         const user = await User.findOne({ email }).select('+password');
 
-        if (!user || !(await user.correctPassword(password, user.password))) {
-            // Log failed attempt
-             await AuditLog.create({
-                action: 'LOGIN_FAILED',
-                details: { email },
-                ipAddress: req.ip || 'unknown'
-            });
+        if (!user) {
             return res.status(401).json({ status: 'fail', message: 'Incorrect email or password' });
         }
 
-        await AuditLog.create({
-            user: user._id,
-            action: 'LOGIN_SUCCESS',
-            ipAddress: req.ip || 'unknown'
-        });
+        // Check if password exists (defense against data corruption)
+        if (!user.password) {
+            console.error(`CRITICAL: User ${email} has no password in DB!`);
+            return res.status(500).json({ status: 'error', message: 'User account corrupted. Please contact support.' });
+        }
+
+        if (!(await user.correctPassword(password, user.password))) {
+            // Log failed attempt
+            try {
+                await AuditLog.create({
+                    action: 'LOGIN_FAILED',
+                    details: { email },
+                    ipAddress: req.ip || 'unknown'
+                });
+            } catch (auditErr) { console.error("Audit log failed:", auditErr.message); }
+            return res.status(401).json({ status: 'fail', message: 'Incorrect email or password' });
+        }
+
+        try {
+            await AuditLog.create({
+                user: user._id,
+                action: 'LOGIN_SUCCESS',
+                ipAddress: req.ip || 'unknown'
+            });
+        } catch (auditErr) { console.error("Audit log failed:", auditErr.message); }
 
         createSendToken(user, 200, res);
     } catch (err) {

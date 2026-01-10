@@ -6,11 +6,12 @@ import { pageVariants, cardVariants } from '../animations';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
-import { AnalyticsChart } from '../components/AnalyticsChart';
+import { TransactionBarChart, TransactionPieChart } from '../components/AnalyticsChart';
 
 export const DashboardPage = () => {
     const [account, setAccount] = useState(null);
     const [analytics, setAnalytics] = useState([]);
+    const [monthlyStats, setMonthlyStats] = useState({ income: 0, expenses: 0 });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -22,6 +23,10 @@ export const DashboardPage = () => {
                 ]);
                 setAccount(accountRes.data.data.account);
                 setAnalytics(analyticsRes.data.data.stats);
+                setMonthlyStats({
+                    income: analyticsRes.data.data.monthlyIncome || 0,
+                    expenses: analyticsRes.data.data.monthlyExpenses || 0
+                });
             } catch (err) {
                 console.error("Failed to fetch dashboard data", err);
             } finally {
@@ -71,13 +76,13 @@ export const DashboardPage = () => {
                 />
                 <StatCard
                     label="Monthly Savings"
-                    value="$1,250.00"
+                    value={`$${monthlyStats.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     icon={ArrowDownLeft}
                     colorClass="bg-emerald-100 text-emerald-600"
                 />
                 <StatCard
                     label="Monthly Expenses"
-                    value="$840.50"
+                    value={`$${monthlyStats.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     icon={ArrowUpRight}
                     colorClass="bg-rose-100 text-rose-600"
                 />
@@ -85,8 +90,13 @@ export const DashboardPage = () => {
 
             {/* Analytics Section */}
             {analytics.length > 0 && (
-                <motion.div variants={cardVariants} initial="hidden" animate="visible">
-                    <AnalyticsChart data={analytics} />
+                <motion.div variants={cardVariants} initial="hidden" animate="visible" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                        <TransactionBarChart data={analytics} />
+                    </div>
+                    <div className="lg:col-span-1">
+                        <TransactionPieChart data={analytics} />
+                    </div>
                 </motion.div>
             )}
 
@@ -114,6 +124,12 @@ export const DashboardPage = () => {
                                 <Button variant="secondary" className="w-full justify-between h-14 bg-white hover:border-primary-200 group">
                                     <span className="flex items-center"><ArrowUpRight className="mr-3 text-rose-500 bg-rose-50 p-1 rounded w-6 h-6" /> Send Money</span>
                                     <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                                </Button>
+                            </Link>
+                            <Link to="/deposit" className="block">
+                                <Button variant="secondary" className="w-full justify-between h-14 bg-white hover:border-emerald-200 group">
+                                    <span className="flex items-center"><ArrowDownLeft className="mr-3 text-emerald-500 bg-emerald-50 p-1 rounded w-6 h-6" /> Deposit Money</span>
+                                    <ArrowDownLeft className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
                                 </Button>
                             </Link>
                             <Link to="/request" className="block">

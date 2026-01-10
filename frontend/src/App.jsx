@@ -9,6 +9,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { AdminPage } from './pages/AdminPage';
 import { RequestMoneyPage } from './pages/RequestMoneyPage';
 import { BalancePage } from './pages/BalancePage';
+import { DepositPage } from './pages/DepositPage';
 import { ProfilePage } from './pages/ProfilePage';
 
 const ProtectedRoute = ({ children, roles }) => {
@@ -32,6 +33,7 @@ function App() {
         <Route index element={<Navigate to="/dashboard" />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="transfer" element={<TransferPage />} />
+        <Route path="deposit" element={<DepositPage />} />
         <Route path="request" element={<RequestMoneyPage />} />
         <Route path="balance" element={<BalancePage />} />
         <Route path="profile" element={<ProfilePage />} />

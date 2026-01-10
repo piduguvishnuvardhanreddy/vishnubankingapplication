@@ -25,6 +25,10 @@ exports.updateProfile = async (req, res) => {
 
         user.name = name;
         user.email = email;
+        if (req.file) {
+            // Store relative path. Assuming server URL is constructed on frontend or base URL context
+            user.profilePicture = `uploads/${req.file.filename}`;
+        }
         await user.save();
 
         res.status(200).json({ status: 'success', data: { user } });
@@ -54,6 +58,36 @@ exports.changePassword = async (req, res) => {
         await user.save();
 
         res.status(200).json({ status: 'success', message: 'Password updated successfully' });
+    } catch (err) {
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+};
+
+exports.changePin = async (req, res) => {
+    try {
+        const { currentPin, newPin } = req.body;
+        if (!newPin || newPin.length < 4 || newPin.length > 6) {
+            return res.status(400).json({ status: 'fail', message: 'PIN must be 4-6 digits' });
+        }
+
+        const user = await User.findById(req.user.id).select('+pin');
+
+        // If user has a PIN, verify it
+        if (user.pin) {
+            if (!currentPin) {
+                return res.status(400).json({ status: 'fail', message: 'Please provide current PIN' });
+            }
+            const isMatch = await bcrypt.compare(currentPin, user.pin);
+            if (!isMatch) {
+                return res.status(401).json({ status: 'fail', message: 'Incorrect current PIN' });
+            }
+        }
+
+        // Set new PIN (will be hashed by pre-save hook)
+        user.pin = newPin;
+        await user.save();
+
+        res.status(200).json({ status: 'success', message: 'PIN updated successfully' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
     }
